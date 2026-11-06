@@ -1,0 +1,60 @@
+name: Verificar processo
+
+on:
+  schedule:
+    - cron: "17 9,15,21 * * *"   # 3x por dia (horario UTC: 06h17, 12h17, 18h17 de Brasilia)
+  workflow_dispatch:
+    inputs:
+      teste:
+        description: "So enviar notificacao de teste"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency: verificar
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Consultar Giustizia Civile
+        env:
+          GC_NUMERO: ${{ secrets.GC_NUMERO }}
+          GC_ANNO: ${{ secrets.GC_ANNO }}
+          GC_IDUFFICIO: ${{ secrets.GC_IDUFFICIO }}
+          GC_REGISTRO: ${{ secrets.GC_REGISTRO }}
+          GC_UUID: ${{ secrets.GC_UUID }}
+          GC_TOKEN: ${{ secrets.GC_TOKEN }}
+          GC_DEVICENAME: ${{ secrets.GC_DEVICENAME }}
+          GC_DEVICEWIDTH: ${{ secrets.GC_DEVICEWIDTH }}
+          GC_DEVICEHEIGHT: ${{ secrets.GC_DEVICEHEIGHT }}
+          GC_APP_VERSION: ${{ secrets.GC_APP_VERSION }}
+          GC_PLATFORM: ${{ secrets.GC_PLATFORM }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: |
+          if [ "${{ inputs.teste }}" = "true" ]; then
+            python checker.py --test
+          else
+            python checker.py
+          fi
+
+      - name: Salvar estado (so se mudou)
+        if: always()
+        run: |
+          git config user.name "alerta-cidadania-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state/ || true
+          git diff --cached --quiet || (git commit -m "Atualiza estado do processo" && git push)
